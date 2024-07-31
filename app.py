@@ -139,7 +139,7 @@ with setup.form("Model settings"):
             with st.popover(f"Settings"):
                 st.text_input(f"Display Name", key=f"model_name_{i+1}")
                 st.text_input("Endpoint URL", key=f"url_{i+1}",value="https://vh-oai-east2.openai.azure.com")
-                st.text_input("API Key", type="password", key=f"key_{i+1}", value="57ad3c90d0f441fdbd7dffda4ae6601d")
+                st.text_input("API Key", type="password", key=f"key_{i+1}", value="YOUR_KEY")
                 st.text_input("Deployment (AOAI Only)", 
                               key=f"deployment_{i+1}", 
                               help="Deployment name for AOAI models",
