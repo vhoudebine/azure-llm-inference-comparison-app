@@ -61,7 +61,7 @@ def ai_inference_stream(ctx,
         assistant_reply_box=containers[index].empty()
 
         first_token = None
-        
+        token_counter = 0
         for event in stream:
             timers[index].empty()
             timers[index].markdown(f"#### Timer: {str(datetime.now()-start_time)[:-3]}")
@@ -69,6 +69,7 @@ def ai_inference_stream(ctx,
             if delta and delta.content:
                 if first_token is None:
                     first_token = datetime.now()
+                token_counter += 1
                 assistant_reply_box.empty()
                 assistant_reply += delta.content
                 assistant_reply_box.markdown(assistant_reply)
@@ -80,7 +81,7 @@ def ai_inference_stream(ctx,
         results[index]= {"response": assistant_reply,
                 "total_time":end_time-start_time,
                 "time_first_token":first_token-start_time,
-                "output_tokens":ai_utils.num_tokens_from_string(assistant_reply, "gpt-4o")}
+                "output_tokens":token_counter}
     except Exception as e:
         threadErrors.append([repr(e), current_thread().name])
         print(e)
@@ -95,10 +96,11 @@ def reset_conversation():
 
 
 
-st.set_page_config(page_title="Model Comparison", 
+st.set_page_config(page_title="Azure AI race", 
                    layout="wide",
-                   initial_sidebar_state="expanded")
-st.title('Azure AI - LLM Comparison')
+                   initial_sidebar_state="expanded",
+                   page_icon="🏎️")
+st.title('Azure AI model race 🏎️💨')
 
 headcol1, headcol2=st.columns([0.7,3])
 clear = headcol1.button('New Comparison 🔄', on_click=reset_conversation)
@@ -124,6 +126,11 @@ with col2:
 
 setup = st.sidebar
 setup.subheader("Settings")
+url_help = """
+For Azure OpenAI, URL should be in the format: https://<endpoint>.openai.azure.com
+For Azure Maas, URL should be in the format: https://<endpoint>.inference.ai.azure.com
+For Azure MaaP, URL should be in the format: https://<endpoint>.inference.ml.azure.com
+"""
 with setup.form("Model settings"):
     for i in range(2):
         st.subheader(f"Model {i+1}")
@@ -138,12 +145,11 @@ with setup.form("Model settings"):
         with collist[1]:
             with st.popover(f"Settings"):
                 st.text_input(f"Display Name", key=f"model_name_{i+1}")
-                st.text_input("Endpoint URL", key=f"url_{i+1}",value="https://vh-oai-east2.openai.azure.com")
-                st.text_input("API Key", type="password", key=f"key_{i+1}", value="YOUR_KEY")
+                st.text_input("Endpoint URL", key=f"url_{i+1}",placeholder="Model Endpoint URL", help=url_help)
+                st.text_input("API Key", type="password", key=f"key_{i+1}", placeholder="Your API Key")
                 st.text_input("Deployment (AOAI Only)", 
                               key=f"deployment_{i+1}", 
-                              help="Deployment name for AOAI models",
-                              value="gpt-4o-global")
+                              help="Deployment name for AOAI models")
 
     
     st.text_area("System Prompt", value="You are a helpful AI Assistant", key="system_prompt")
@@ -153,7 +159,7 @@ with setup.form("Model settings"):
 help = """Supported models are those available on Azure, this includes:
         \n - Azure OpenAI models
         \n - Azure AI serverless inference models (LLama2, Cohere, Phi-3 etc.)
-        \n - Azure managed endpoints (**ONLY** Llama3 instruct, Phi-3 family, Mixtral family)"""
+        \n - Azure AI/ML managed endpoints (**ONLY** Llama3 instruct, Phi-3 family, Mixtral family)"""
 
 setup.subheader("(Optional) Image Input")
 uploaded_file = setup.file_uploader("Use Image input", type=["jpg", "jpeg", "png"])
@@ -192,6 +198,7 @@ timers = [timer1, timer2]
 containers = [container1, container2]
 columns = [col1, col2]
 missing = False
+invalid_url = False
 bytes_data = None
 
 if prompt := st.chat_input("Enter a prompt"):
@@ -213,10 +220,15 @@ if prompt := st.chat_input("Enter a prompt"):
     for i in range(2):
         if models[i]["endpoint"]=="" or models[i]["key"]=="":
             missing = True
+        if not ai_utils.is_valid_url(models[i]["endpoint"], models[i]["model_type"]):
+            invalid_url = True
+            break
     
     
     if missing:
         prompt_container.error("Please fill in endpoint and API Key for both models in the settings tab")
+    elif invalid_url:
+        prompt_container.error("Invalid URL, please enter a valid URL")
     else:
         ctx = get_script_run_ctx()
         threads = []
@@ -240,4 +252,16 @@ if prompt := st.chat_input("Enter a prompt"):
                         st.write(f"Output Tokens: {results[i]['output_tokens']}")
                         st.write(f"Tokens per second: {float(results[i]['output_tokens'])/results[i]['total_time'].total_seconds()}")
         
-    
+            lowest_time_index = min(range(len(results)), key=lambda i: results[i]['total_time'])
+            winner_name = models[lowest_time_index]["model"]
+            st.toast(f"**Model {lowest_time_index+1} {winner_name} wins 🎉🎉🎉**", icon="🏆")
+
+st.markdown(
+    r"""
+    <style>
+    [data-testid="stToolbar"] {
+            visibility: hidden;
+        }
+    </style>
+    """, unsafe_allow_html=True
+)
